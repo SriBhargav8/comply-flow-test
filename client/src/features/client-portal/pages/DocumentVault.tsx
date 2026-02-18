@@ -1,0 +1,973 @@
+import { useEffect, useState } from 'react';
+import { DashboardLayout } from '@/layouts';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  FileText,
+  Download,
+  Search,
+  Filter,
+  Calendar,
+  Shield,
+  Eye,
+  Share2,
+  Archive,
+  Trash2,
+  Upload,
+  FolderOpen,
+  Star,
+  Clock,
+  CheckCircle,
+  AlertTriangle,
+  File,
+  Image,
+  FileSpreadsheet,
+  FileImage,
+  Lock,
+  Unlock,
+  Copy,
+  X
+} from 'lucide-react';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+import { withCsrfHeaders } from '@/lib/csrf';
+import { useToast } from '@/hooks/use-toast';
+import type { DocumentVault } from '@shared/schema';
+import { SkeletonCard, SkeletonDashboard } from '@/components/ui/skeleton-loader';
+import { EmptyList, EmptySearchResults } from '@/components/ui/empty-state';
+
+interface DocumentWithMetrics extends DocumentVault {
+  categoryName?: string;
+  serviceName?: string;
+  isExpiringSoon?: boolean;
+  downloadHistory?: any[];
+}
+
+interface DocumentCategory {
+  id: string;
+  name: string;
+  icon: any;
+  color: string;
+  count: number;
+  totalSize: number;
+}
+
+const DocumentVault = () => {
+  const { toast } = useToast();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<'date' | 'name' | 'type' | 'size'>('date');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+  const [previewDoc, setPreviewDoc] = useState<DocumentWithMetrics | null>(null);
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [shareDoc, setShareDoc] = useState<DocumentWithMetrics | null>(null);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadDocumentType, setUploadDocumentType] = useState('');
+  const [uploadCategory, setUploadCategory] = useState('compliance');
+  const [uploadExpiryDate, setUploadExpiryDate] = useState('');
+
+  const missingParam = new URLSearchParams(window.location.search).get('missing');
+  const missingTypes = missingParam
+    ? missingParam.split(',').map((type) => type.trim()).filter(Boolean)
+    : [];
+  const missingTypesKey = missingTypes.join('|');
+  const missingTypeLabels = missingTypes.map((type) =>
+    type.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())
+  );
+
+  useEffect(() => {
+    if (missingTypes.length > 0) {
+      setShowUploadDialog(true);
+      if (!uploadDocumentType) {
+        setUploadDocumentType(missingTypes[0]);
+      }
+    }
+  }, [missingTypesKey]);
+
+  // Fetch documents
+  const { data: documents = [], isLoading } = useQuery<DocumentWithMetrics[]>({
+    queryKey: ['/api/document-vault'],
+  });
+
+  // Download document mutation
+  const downloadDocumentMutation = useMutation({
+    mutationFn: (documentId: number) => 
+      apiRequest('POST', `/api/document-vault/${documentId}/download`, {}),
+    onSuccess: (data: any) => {
+      // Handle download link
+      const link = document.createElement('a');
+      link.href = data.downloadUrl;
+      link.download = data.fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      queryClient.invalidateQueries({ queryKey: ['/api/document-vault'] });
+      toast({
+        title: "Download Started",
+        description: "Your document download has started.",
+      });
+    },
+  });
+
+  // Delete document mutation
+  const deleteDocumentMutation = useMutation({
+    mutationFn: (documentId: number) =>
+      apiRequest('DELETE', `/api/document-vault/${documentId}`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/document-vault'] });
+      toast({
+        title: "Document Deleted",
+        description: "Document has been permanently deleted.",
+        variant: "destructive"
+      });
+    },
+  });
+
+  const uploadDocumentMutation = useMutation({
+    mutationFn: async () => {
+      if (!uploadFile) {
+        throw new Error('Please select a file to upload.');
+      }
+      if (!uploadDocumentType.trim()) {
+        throw new Error('Please select a document type.');
+      }
+
+      const formData = new FormData();
+      formData.append('file', uploadFile);
+      formData.append('documentType', uploadDocumentType.trim());
+      formData.append('category', uploadCategory || 'compliance');
+      if (uploadExpiryDate) {
+        formData.append('expiryDate', uploadExpiryDate);
+      }
+
+      const response = await fetch('/api/document-vault/upload-file', {
+        method: 'POST',
+        headers: withCsrfHeaders({}),
+        credentials: 'include',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Upload failed' }));
+        throw new Error(errorData.error || 'Upload failed');
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/document-vault'] });
+      toast({
+        title: "Upload Complete",
+        description: "Your document has been uploaded for review.",
+      });
+      setShowUploadDialog(false);
+      setUploadFile(null);
+      setUploadDocumentType('');
+      setUploadCategory('compliance');
+      setUploadExpiryDate('');
+    },
+  });
+
+  // Preview document handler
+  const handlePreview = (doc: DocumentWithMetrics) => {
+    setPreviewDoc(doc);
+  };
+
+  // Share document handler
+  const handleShare = (doc: DocumentWithMetrics) => {
+    setShareDoc(doc);
+    setShowShareDialog(true);
+  };
+
+  // Copy share link to clipboard
+  const copyShareLink = () => {
+    if (shareDoc) {
+      const shareUrl = `${window.location.origin}/document-vault/share/${shareDoc.id}`;
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        toast({
+          title: "Link Copied",
+          description: "Share link has been copied to clipboard.",
+        });
+      });
+    }
+  };
+
+  const getFileIcon = (mimeType: string | null) => {
+    if (!mimeType) return <File className="h-5 w-5" />;
+    
+    if (mimeType.startsWith('image/')) return <FileImage className="h-5 w-5 text-blue-500" />;
+    if (mimeType.includes('pdf')) return <FileText className="h-5 w-5 text-red-500" />;
+    if (mimeType.includes('spreadsheet') || mimeType.includes('excel')) return <FileSpreadsheet className="h-5 w-5 text-green-500" />;
+    if (mimeType.includes('document') || mimeType.includes('word')) return <FileText className="h-5 w-5 text-blue-500" />;
+    
+    return <File className="h-5 w-5 text-gray-500" />;
+  };
+
+  const formatFileSize = (bytes: number | null) => {
+    if (!bytes) return 'Unknown size';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let size = bytes;
+    let unitIndex = 0;
+    
+    while (size >= 1024 && unitIndex < units.length - 1) {
+      size /= 1024;
+      unitIndex++;
+    }
+    
+    return `${size.toFixed(1)} ${units[unitIndex]}`;
+  };
+
+  const getDocumentStatus = (doc: DocumentWithMetrics) => {
+    if (doc.expiryDate && new Date(doc.expiryDate) < new Date()) {
+      return { status: 'expired', color: 'bg-red-100 text-red-800', icon: AlertTriangle };
+    }
+    if (doc.isExpiringSoon) {
+      return { status: 'expiring soon', color: 'bg-yellow-100 text-yellow-800', icon: Clock };
+    }
+    if (doc.isOfficial) {
+      return { status: 'official', color: 'bg-green-100 text-green-800', icon: CheckCircle };
+    }
+    return { status: 'active', color: 'bg-blue-100 text-blue-800', icon: FileText };
+  };
+
+  const documentCategories: DocumentCategory[] = [
+    {
+      id: 'incorporation',
+      name: 'Incorporation Documents',
+      icon: Shield,
+      color: 'text-blue-600',
+      count: documents.filter(d => d.documentType?.includes('incorporation')).length,
+      totalSize: documents.filter(d => d.documentType?.includes('incorporation')).reduce((sum, d) => sum + (d.fileSize || 0), 0)
+    },
+    {
+      id: 'tax',
+      name: 'Tax Documents',
+      icon: FileText,
+      color: 'text-green-600',
+      count: documents.filter(d => d.documentType?.includes('tax') || d.documentType?.includes('gst')).length,
+      totalSize: documents.filter(d => d.documentType?.includes('tax') || d.documentType?.includes('gst')).reduce((sum, d) => sum + (d.fileSize || 0), 0)
+    },
+    {
+      id: 'compliance',
+      name: 'Compliance Filings',
+      icon: CheckCircle,
+      color: 'text-purple-600',
+      count: documents.filter(d => d.documentType?.includes('filing') || d.documentType?.includes('annual')).length,
+      totalSize: documents.filter(d => d.documentType?.includes('filing') || d.documentType?.includes('annual')).reduce((sum, d) => sum + (d.fileSize || 0), 0)
+    },
+    {
+      id: 'certificates',
+      name: 'Certificates',
+      icon: Star,
+      color: 'text-yellow-600',
+      count: documents.filter(d => d.documentType?.includes('certificate')).length,
+      totalSize: documents.filter(d => d.documentType?.includes('certificate')).reduce((sum, d) => sum + (d.fileSize || 0), 0)
+    }
+  ];
+
+  const filteredDocuments = documents.filter(doc => {
+    if (searchQuery && !doc.fileName.toLowerCase().includes(searchQuery.toLowerCase()) && 
+        !doc.documentType.toLowerCase().includes(searchQuery.toLowerCase())) {
+      return false;
+    }
+    
+    if (selectedCategory !== 'all') {
+      const category = documentCategories.find(c => c.id === selectedCategory);
+      if (category) {
+        switch (selectedCategory) {
+          case 'incorporation':
+            return doc.documentType?.includes('incorporation');
+          case 'tax':
+            return doc.documentType?.includes('tax') || doc.documentType?.includes('gst');
+          case 'compliance':
+            return doc.documentType?.includes('filing') || doc.documentType?.includes('annual');
+          case 'certificates':
+            return doc.documentType?.includes('certificate');
+        }
+      }
+    }
+    
+    return true;
+  });
+
+  const sortedDocuments = [...filteredDocuments].sort((a, b) => {
+    switch (sortBy) {
+      case 'name':
+        return a.fileName.localeCompare(b.fileName);
+      case 'type':
+        return a.documentType.localeCompare(b.documentType);
+      case 'size':
+        return (b.fileSize || 0) - (a.fileSize || 0);
+      case 'date':
+      default:
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    }
+  });
+
+  const totalDocuments = documents.length;
+  const totalSize = documents.reduce((sum, doc) => sum + (doc.fileSize || 0), 0);
+  const officialDocuments = documents.filter(doc => doc.isOfficial).length;
+  const expiringDocuments = documents.filter(doc => doc.isExpiringSoon).length;
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto p-6 max-w-7xl">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2">Document Vault</h1>
+        </div>
+        <SkeletonDashboard stats={4} />
+        <div className="mt-6">
+          <SkeletonCard />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <DashboardLayout>
+    <div className="container mx-auto p-6 max-w-7xl">
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-4">
+          <FolderOpen className="h-8 w-8 text-blue-600" />
+          <h1 className="text-3xl font-bold">Document Vault</h1>
+        </div>
+        <p className="text-gray-600">
+          Securely store, organize, and access all your business documents in one place.
+        </p>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Total Documents</p>
+                <p className="text-3xl font-bold">{totalDocuments}</p>
+              </div>
+              <FileText className="h-8 w-8 text-blue-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Storage Used</p>
+                <p className="text-3xl font-bold">{formatFileSize(totalSize)}</p>
+              </div>
+              <Archive className="h-8 w-8 text-green-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Official Documents</p>
+                <p className="text-3xl font-bold">{officialDocuments}</p>
+              </div>
+              <Shield className="h-8 w-8 text-green-500" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Expiring Soon</p>
+                <p className="text-3xl font-bold text-orange-600">{expiringDocuments}</p>
+              </div>
+              <Clock className="h-8 w-8 text-orange-500" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {missingTypes.length > 0 && (
+        <Card className="mb-6 border-amber-200 bg-amber-50">
+          <CardContent className="p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="font-medium text-amber-900">Compliance needs documents</p>
+              <p className="text-sm text-amber-800">
+                Upload: {missingTypeLabels.join(', ')}
+              </p>
+            </div>
+            <Button size="sm" onClick={() => setShowUploadDialog(true)}>
+              <Upload className="h-4 w-4 mr-2" />
+              Upload Now
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Search and Filter Bar */}
+      <Card className="mb-6">
+        <CardContent className="p-6">
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="flex-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                <Input
+                  placeholder="Search documents by name or type..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <select 
+                value={selectedCategory} 
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="px-3 py-2 border rounded"
+              >
+                <option value="all">All Categories</option>
+                {documentCategories.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.name} ({category.count})
+                  </option>
+                ))}
+              </select>
+              <select 
+                value={sortBy} 
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="px-3 py-2 border rounded"
+              >
+                <option value="date">Sort by Date</option>
+                <option value="name">Sort by Name</option>
+                <option value="type">Sort by Type</option>
+                <option value="size">Sort by Size</option>
+              </select>
+              <Button variant="outline" size="sm" onClick={() => setShowUploadDialog(true)}>
+                <Upload className="h-4 w-4 mr-2" />
+                Upload
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Tabs defaultValue="documents" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="documents">All Documents</TabsTrigger>
+          <TabsTrigger value="categories">Categories</TabsTrigger>
+          <TabsTrigger value="recent">Recent Activity</TabsTrigger>
+        </TabsList>
+
+        {/* All Documents */}
+        <TabsContent value="documents">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle>Documents ({sortedDocuments.length})</CardTitle>
+                <div className="flex gap-2">
+                  <Button
+                    variant={viewMode === 'list' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setViewMode('list')}
+                  >
+                    List
+                  </Button>
+                  <Button
+                    variant={viewMode === 'grid' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setViewMode('grid')}
+                  >
+                    Grid
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {viewMode === 'list' ? (
+                <div className="space-y-3">
+                  {sortedDocuments.map((doc) => {
+                    const status = getDocumentStatus(doc);
+                    const StatusIcon = status.icon;
+                    
+                    return (
+                      <div key={doc.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+                        <div className="flex items-center gap-4">
+                          {getFileIcon(doc.mimeType)}
+                          <div className="flex-1">
+                            <h3 className="font-medium">{doc.fileName}</h3>
+                            <div className="flex items-center gap-4 text-sm text-gray-600">
+                              <span>{doc.documentType}</span>
+                              <span>{formatFileSize(doc.fileSize)}</span>
+                              <span>{new Date(doc.createdAt).toLocaleDateString()}</span>
+                              {doc.downloadCount && doc.downloadCount > 0 && (
+                                <span>{doc.downloadCount} downloads</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge className={status.color}>
+                              <StatusIcon className="h-3 w-3 mr-1" />
+                              {status.status}
+                            </Badge>
+                            {doc.accessLevel === 'private' ? (
+                              <Lock className="h-4 w-4 text-gray-400" />
+                            ) : (
+                              <Unlock className="h-4 w-4 text-green-500" />
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handlePreview(doc)}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => downloadDocumentMutation.mutate(doc.id)}
+                            disabled={downloadDocumentMutation.isPending}
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleShare(doc)}
+                          >
+                            <Share2 className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => deleteDocumentMutation.mutate(doc.id)}
+                            disabled={deleteDocumentMutation.isPending}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {sortedDocuments.map((doc) => {
+                    const status = getDocumentStatus(doc);
+                    const StatusIcon = status.icon;
+                    
+                    return (
+                      <Card key={doc.id} className="hover:shadow-md transition-shadow">
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between mb-3">
+                            {getFileIcon(doc.mimeType)}
+                            <Badge className={status.color}>
+                              <StatusIcon className="h-3 w-3 mr-1" />
+                              {status.status}
+                            </Badge>
+                          </div>
+                          <h3 className="font-medium text-sm mb-2 truncate" title={doc.fileName}>
+                            {doc.fileName}
+                          </h3>
+                          <div className="text-xs text-gray-600 space-y-1 mb-3">
+                            <div>{doc.documentType}</div>
+                            <div>{formatFileSize(doc.fileSize)}</div>
+                            <div>{new Date(doc.createdAt).toLocaleDateString()}</div>
+                          </div>
+                          <div className="flex justify-between">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => downloadDocumentMutation.mutate(doc.id)}
+                              disabled={downloadDocumentMutation.isPending}
+                            >
+                              <Download className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handlePreview(doc)}
+                            >
+                              <Eye className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+
+              {sortedDocuments.length === 0 && (
+                searchQuery || selectedCategory !== 'all' ? (
+                  <EmptySearchResults
+                    searchTerm={searchQuery}
+                    onClearSearch={() => {
+                      setSearchQuery('');
+                      setSelectedCategory('all');
+                    }}
+                  />
+                ) : (
+                  <EmptyList
+                    title="No Documents Found"
+                    description="Start by uploading your first document to your secure vault"
+                    actionLabel="Upload Document"
+                    onAction={() => setShowUploadDialog(true)}
+                  />
+                )
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Categories */}
+        <TabsContent value="categories">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {documentCategories.map((category) => (
+              <Card key={category.id} className="hover:shadow-md transition-shadow">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-3">
+                    <category.icon className={`h-6 w-6 ${category.color}`} />
+                    {category.name}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="p-3 bg-gray-50 rounded">
+                      <p className="text-2xl font-bold">{category.count}</p>
+                      <p className="text-sm text-gray-600">Documents</p>
+                    </div>
+                    <div className="p-3 bg-gray-50 rounded">
+                      <p className="text-2xl font-bold">{formatFileSize(category.totalSize)}</p>
+                      <p className="text-sm text-gray-600">Total Size</p>
+                    </div>
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    className="w-full"
+                    onClick={() => setSelectedCategory(category.id)}
+                  >
+                    View Documents
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </TabsContent>
+
+        {/* Recent Activity */}
+        <TabsContent value="recent">
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent Activity</CardTitle>
+              <CardDescription>Latest document uploads and downloads</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {documents.slice(0, 10).map((doc) => (
+                  <div key={doc.id} className="flex items-center justify-between p-3 border rounded">
+                    <div className="flex items-center gap-3">
+                      {getFileIcon(doc.mimeType)}
+                      <div>
+                        <p className="font-medium">{doc.fileName}</p>
+                        <p className="text-sm text-gray-600">
+                          Uploaded {new Date(doc.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline">
+                        {doc.downloadCount || 0} downloads
+                      </Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => downloadDocumentMutation.mutate(doc.id)}
+                        disabled={downloadDocumentMutation.isPending}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Document Preview Modal */}
+      <Dialog open={!!previewDoc} onOpenChange={(open) => !open && setPreviewDoc(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {previewDoc && getFileIcon(previewDoc.mimeType)}
+              {previewDoc?.fileName}
+            </DialogTitle>
+            <DialogDescription>
+              {previewDoc?.documentType} • {previewDoc && formatFileSize(previewDoc.fileSize)}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex-1 overflow-auto">
+            {previewDoc && (
+              <div className="space-y-4">
+                <div className="border rounded-lg p-6 bg-gray-50 min-h-[400px] flex items-center justify-center">
+                  {previewDoc.mimeType?.includes('pdf') ? (
+                    <div className="text-center">
+                      <FileText className="h-16 w-16 text-red-500 mx-auto mb-4" />
+                      <p className="text-gray-600 mb-4">PDF Document Preview</p>
+                      <Button
+                        onClick={() => downloadDocumentMutation.mutate(previewDoc.id)}
+                        disabled={downloadDocumentMutation.isPending}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download to View
+                      </Button>
+                    </div>
+                  ) : previewDoc.mimeType?.startsWith('image/') ? (
+                    <div className="text-center">
+                      <FileImage className="h-16 w-16 text-blue-500 mx-auto mb-4" />
+                      <p className="text-gray-600 mb-4">Image Preview</p>
+                      <Button
+                        onClick={() => downloadDocumentMutation.mutate(previewDoc.id)}
+                        disabled={downloadDocumentMutation.isPending}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download to View
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <File className="h-16 w-16 text-gray-500 mx-auto mb-4" />
+                      <p className="text-gray-600 mb-4">Document Preview</p>
+                      <Button
+                        onClick={() => downloadDocumentMutation.mutate(previewDoc.id)}
+                        disabled={downloadDocumentMutation.isPending}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download to View
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-gray-500">Document Type</p>
+                    <p className="font-medium">{previewDoc.documentType}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Uploaded</p>
+                    <p className="font-medium">{new Date(previewDoc.createdAt).toLocaleDateString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">File Size</p>
+                    <p className="font-medium">{formatFileSize(previewDoc.fileSize)}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500">Downloads</p>
+                    <p className="font-medium">{previewDoc.downloadCount || 0}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPreviewDoc(null)}>
+              Close
+            </Button>
+            <Button
+              onClick={() => previewDoc && downloadDocumentMutation.mutate(previewDoc.id)}
+              disabled={downloadDocumentMutation.isPending}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Upload Document Dialog */}
+      <Dialog
+        open={showUploadDialog}
+        onOpenChange={(open) => {
+          setShowUploadDialog(open);
+          if (open && missingTypes.length > 0 && !uploadDocumentType) {
+            setUploadDocumentType(missingTypes[0]);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upload Document</DialogTitle>
+            <DialogDescription>
+              Upload compliance evidence and supporting files for review.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Document Type</Label>
+              {missingTypes.length > 0 ? (
+                <>
+                  <Select value={uploadDocumentType} onValueChange={setUploadDocumentType}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select document type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {missingTypes.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {type.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase())}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Requested by compliance checkpoints.
+                  </p>
+                </>
+              ) : (
+                <Input
+                  placeholder="e.g., gst_return, audited_financials"
+                  value={uploadDocumentType}
+                  onChange={(event) => setUploadDocumentType(event.target.value)}
+                />
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <Select value={uploadCategory} onValueChange={setUploadCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="compliance">Compliance</SelectItem>
+                  <SelectItem value="tax">Tax</SelectItem>
+                  <SelectItem value="license">License</SelectItem>
+                  <SelectItem value="legal">Legal</SelectItem>
+                  <SelectItem value="kyc">KYC</SelectItem>
+                  <SelectItem value="registration">Registration</SelectItem>
+                  <SelectItem value="finance">Finance</SelectItem>
+                  <SelectItem value="general">General</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>File</Label>
+              <Input
+                type="file"
+                onChange={(event) => setUploadFile(event.target.files?.[0] || null)}
+              />
+              {uploadFile && (
+                <p className="text-xs text-muted-foreground">
+                  Selected: {uploadFile.name}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Expiry Date (optional)</Label>
+              <Input
+                type="date"
+                value={uploadExpiryDate}
+                onChange={(event) => setUploadExpiryDate(event.target.value)}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUploadDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => uploadDocumentMutation.mutate()}
+              disabled={!uploadFile || !uploadDocumentType.trim() || uploadDocumentMutation.isPending}
+            >
+              {uploadDocumentMutation.isPending ? 'Uploading...' : 'Upload'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Share Document Dialog */}
+      <Dialog open={showShareDialog} onOpenChange={setShowShareDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Share Document</DialogTitle>
+            <DialogDescription>
+              Share "{shareDoc?.fileName}" with others
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium text-gray-700">Share Link</label>
+              <div className="flex gap-2 mt-1">
+                <Input
+                  readOnly
+                  value={shareDoc ? `${window.location.origin}/document-vault/share/${shareDoc.id}` : ''}
+                  className="flex-1"
+                />
+                <Button onClick={copyShareLink}>
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                Anyone with this link can view the document
+              </p>
+            </div>
+
+            <div className="border-t pt-4">
+              <p className="text-sm font-medium text-gray-700 mb-2">Quick Share</p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (shareDoc) {
+                      const url = encodeURIComponent(`${window.location.origin}/document-vault/share/${shareDoc.id}`);
+                      window.open(`mailto:?subject=Document: ${shareDoc.fileName}&body=View document: ${url}`, '_blank');
+                    }
+                  }}
+                >
+                  Email
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (shareDoc) {
+                      const url = encodeURIComponent(`${window.location.origin}/document-vault/share/${shareDoc.id}`);
+                      window.open(`https://wa.me/?text=Document: ${shareDoc.fileName} ${url}`, '_blank');
+                    }
+                  }}
+                >
+                  WhatsApp
+                </Button>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowShareDialog(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+    </DashboardLayout>
+  );
+};
+
+export default DocumentVault;

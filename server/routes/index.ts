@@ -1,0 +1,119 @@
+/**
+ * Routes Index
+ * Central route registration for all API endpoints
+ *
+ * @deprecated PARTIALLY UNUSED - The registerApiRoutes() function is never called.
+ * The main server uses server/routes.ts which has its own route registration.
+ *
+ * This file was intended to be a modular route registration system but the app
+ * evolved to use the monolithic server/routes.ts instead.
+ *
+ * Consider consolidating all routes in future refactor.
+ */
+
+import { Express } from 'express';
+import authRoutes from './auth';
+import clientRoutes from './client';
+import clientV2Routes from './client-v2';
+import lifecycleApiRoutes from './lifecycle-api';
+import salesRoutes from './sales';
+import operationsRoutes from './operations';
+import adminRoutes from './admin';
+import paymentRoutes from './payment';
+import complianceStateRoutes from '../compliance-state-routes';
+import monitoringRoutes from '../monitoring/routes';
+import notificationRoutes from './notifications';
+import messagingRoutes from './messaging';
+import walletRoutes from './wallet';
+import agentKycRoutes from './agent-kyc';
+import razorpayWebhookRoutes from './webhooks/razorpay';
+import auditRoutes from './audit';
+import governmentFilingRoutes from './government-filing';
+import reportsRoutes from './reports';
+import hrRoutes from './hr';
+// Note: opsCaseRoutes are registered in main server/routes.ts via server/ops-case-routes.ts
+
+/**
+ * Register all API routes
+ */
+export function registerApiRoutes(app: Express): void {
+  // API v1 routes
+  const API_PREFIX = '/api/v1';
+
+  // Authentication routes
+  app.use(`${API_PREFIX}/auth`, authRoutes);
+
+  // Client portal routes
+  app.use(`${API_PREFIX}/client`, clientRoutes);
+  app.use(`${API_PREFIX}/services`, clientRoutes);
+
+  // Sales portal routes
+  app.use(`${API_PREFIX}/sales`, salesRoutes);
+
+  // Operations portal routes
+  app.use(`${API_PREFIX}/operations`, operationsRoutes);
+
+  // Note: Ops Case Dashboard routes registered in main server/routes.ts
+
+  // Admin portal routes
+  app.use(`${API_PREFIX}/admin`, adminRoutes);
+
+  // Payment routes
+  app.use(`${API_PREFIX}/payments`, paymentRoutes);
+
+  // Compliance State routes
+  app.use(`${API_PREFIX}/compliance-state`, complianceStateRoutes);
+
+  // Monitoring routes (APM, metrics, alerts)
+  app.use(`${API_PREFIX}/monitoring`, monitoringRoutes);
+
+  // Notification routes (in-app, preferences, OTP)
+  app.use(`${API_PREFIX}/notifications`, notificationRoutes);
+  app.use('/api/notifications', notificationRoutes); // Also mount at /api for backwards compat
+
+  // Messaging routes (threads, messages)
+  app.use(`${API_PREFIX}/messages`, messagingRoutes);
+  app.use('/api/messages', messagingRoutes);
+
+  // Wallet & Referral routes
+  app.use(`${API_PREFIX}/wallet`, walletRoutes);
+  app.use('/api/wallet', walletRoutes);
+  app.use(`${API_PREFIX}/referrals`, walletRoutes);
+  app.use('/api/referrals', walletRoutes);
+
+  // Agent KYC routes
+  app.use(`${API_PREFIX}/agent/kyc`, agentKycRoutes);
+  app.use('/api/agent/kyc', agentKycRoutes);
+
+  // Webhook routes (external payment provider callbacks)
+  app.use('/webhooks/razorpay', razorpayWebhookRoutes);
+
+  // Audit log routes (compliance and security)
+  app.use(`${API_PREFIX}/audit`, auditRoutes);
+  app.use('/api/audit', auditRoutes);
+
+  // Government filing routes (GST, ITR, MCA, TDS, PF, ESI)
+  app.use(`${API_PREFIX}/government`, governmentFilingRoutes);
+  app.use('/api/government', governmentFilingRoutes);
+
+  // Report generator routes
+  app.use(`${API_PREFIX}/reports`, reportsRoutes);
+  app.use('/api/reports', reportsRoutes);
+
+  // HR management routes (employees, attendance, leave, training, performance)
+  app.use(`${API_PREFIX}/hr`, hrRoutes);
+  app.use('/api/hr', hrRoutes);
+
+  console.log('✅ API v1 routes registered');
+
+  // API v2 routes (US-Style Portal)
+  const API_V2_PREFIX = '/api/v2';
+
+  // Client portal v2 routes (status-first design)
+  app.use(`${API_V2_PREFIX}/client`, clientV2Routes);
+
+  // Lifecycle management routes (high-level + drill-down)
+  app.use(`${API_V2_PREFIX}/lifecycle`, lifecycleApiRoutes);
+
+  console.log('✅ API v2 routes registered (US-Style Portal with Lifecycle Management)');
+}

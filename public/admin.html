@@ -1,0 +1,541 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>DigiComply Admin (No-Code)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --secondary: #64748b;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --background: #f8fafc;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --text-primary: #0f172a;
+      --text-secondary: #64748b;
+      --text-muted: #94a3b8;
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+    }
+    
+    * { box-sizing: border-box; }
+    
+    body { 
+      font-family: 'Inter', system-ui, -apple-system, sans-serif; 
+      margin: 0; 
+      padding: 24px;
+      background: var(--background);
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+    
+    h1 { 
+      font-size: 2rem; 
+      font-weight: 700; 
+      margin: 0 0 8px 0; 
+      color: var(--text-primary);
+    }
+    
+    h2 { 
+      font-size: 1.25rem; 
+      font-weight: 600; 
+      margin: 32px 0 16px 0; 
+      color: var(--text-primary);
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 8px;
+    }
+    
+    .header-subtitle {
+      color: var(--text-secondary);
+      font-size: 1rem;
+      margin-bottom: 32px;
+    }
+    
+    .card { 
+      background: var(--surface);
+      border: 1px solid var(--border); 
+      border-radius: 12px; 
+      padding: 24px; 
+      margin: 16px 0; 
+      box-shadow: var(--shadow-sm);
+      transition: box-shadow 0.2s ease;
+    }
+    
+    .card:hover {
+      box-shadow: var(--shadow-md);
+    }
+    
+    .row { 
+      display: flex; 
+      gap: 16px; 
+      flex-wrap: wrap; 
+      align-items: flex-end; 
+      margin-bottom: 16px;
+    }
+    
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      min-width: 180px;
+    }
+    
+    label { 
+      font-size: 13px; 
+      font-weight: 500;
+      color: var(--text-primary); 
+      margin-bottom: 4px;
+    }
+    
+    input, select, textarea { 
+      padding: 10px 12px; 
+      border-radius: 8px; 
+      border: 1px solid var(--border); 
+      font-size: 14px;
+      background: var(--surface);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgb(37 99 235 / 0.1);
+    }
+    
+    button { 
+      background: var(--primary); 
+      color: white; 
+      border: none; 
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer; 
+      transition: background-color 0.2s ease, transform 0.1s ease;
+      height: fit-content;
+    }
+    
+    button:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+    }
+    
+    button:active {
+      transform: translateY(0);
+    }
+    
+    button.secondary {
+      background: var(--secondary);
+    }
+    
+    button.success {
+      background: var(--success);
+    }
+    
+    textarea { 
+      width: 100%; 
+      min-height: 180px; 
+      font-family: 'SF Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 13px;
+      resize: vertical;
+    }
+    
+    .muted { 
+      color: var(--text-muted); 
+      font-size: 13px; 
+    }
+    
+    table { 
+      border-collapse: collapse; 
+      width: 100%; 
+      background: var(--surface);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+    }
+    
+    th { 
+      background: var(--background);
+      border-bottom: 1px solid var(--border); 
+      padding: 12px 16px; 
+      text-align: left; 
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    td { 
+      border-bottom: 1px solid var(--border); 
+      padding: 12px 16px; 
+      font-size: 14px; 
+    }
+    
+    tr:hover {
+      background: var(--background);
+    }
+    
+    .pill { 
+      padding: 4px 10px; 
+      border-radius: 20px; 
+      background: #eff6ff; 
+      color: var(--primary); 
+      font-size: 12px; 
+      font-weight: 500;
+      display: inline-block;
+    }
+    
+    .pill.success {
+      background: #f0fdf4;
+      color: var(--success);
+    }
+    
+    .pill.warning {
+      background: #fefce8;
+      color: var(--warning);
+    }
+    
+    .pill.danger {
+      background: #fef2f2;
+      color: var(--danger);
+    }
+    
+    .ok { color: var(--success); font-weight: 500; }
+    .err { color: var(--danger); font-weight: 500; }
+    
+    .grid { 
+      display: grid; 
+      gap: 20px; 
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); 
+    }
+    
+    .loading {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border);
+      border-radius: 50%;
+      border-top-color: var(--primary);
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 8px;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .toast {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 12px 16px;
+      border-radius: 8px;
+      color: white;
+      font-weight: 500;
+      z-index: 1000;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+    }
+    
+    .toast.show {
+      transform: translateX(0);
+    }
+    
+    .toast.success {
+      background: var(--success);
+    }
+    
+    .toast.error {
+      background: var(--danger);
+    }
+    
+    @media (max-width: 768px) {
+      body { padding: 16px; }
+      .row { flex-direction: column; align-items: stretch; }
+      .form-group { min-width: auto; }
+      h1 { font-size: 1.75rem; }
+    }
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <h1>Enterprise Admin Portal</h1>
+  <p class="header-subtitle">Configure services, workflows, and business rules with our no-code platform. Manage the entire compliance ecosystem from a single dashboard.</p>
+
+  <!-- SERVICES CATALOG -->
+  <h2>1) Services Catalog</h2>
+  <div class="card">
+    <div class="row">
+      <div class="form-group">
+        <label>Service Key</label>
+        <input id="svc_key" placeholder="gst_returns"/>
+      </div>
+      <div class="form-group">
+        <label>Service Name</label>
+        <input id="svc_name" placeholder="GST Returns Filing"/>
+      </div>
+      <div class="form-group">
+        <label>Periodicity</label>
+        <select id="svc_periodicity">
+          <option>ONE_TIME</option><option>MONTHLY</option><option>QUARTERLY</option><option>ANNUAL</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Description</label>
+        <input id="svc_desc" placeholder="Periodic GST return filings"/>
+      </div>
+      <button onclick="addService()">
+        <span id="add-service-loading" class="loading" style="display: none;"></span>
+        Add Service
+      </button>
+      <button onclick="loadServices()" class="secondary">Refresh</button>
+    </div>
+    <div id="svc_list" style="margin-top:12px;"></div>
+  </div>
+
+  <!-- DOC TYPES -->
+  <h2>2) Service Doc Types</h2>
+  <div class="card">
+    <div class="row">
+      <div><label>Service Key<br/><input id="doc_service_key" placeholder="gst_returns"/></label></div>
+      <div><label>Doc Type<br/><input id="doc_doctype" placeholder="sales_register_csv"/></label></div>
+      <div><label>Label<br/><input id="doc_label" placeholder="Sales Register (CSV)"/></label></div>
+      <div><label>Client Uploads?<br/><select id="doc_client"><option value="1">Yes</option><option value="0">No</option></select></label></div>
+      <div><label>Versioned?<br/><select id="doc_versioned"><option value="1">Yes</option><option value="0">No</option></select></label></div>
+      <div><label>Deliverable?<br/><select id="doc_deliv"><option value="0">No</option><option value="1">Yes</option></select></label></div>
+      <div><label>Internal?<br/><select id="doc_internal"><option value="0">No</option><option value="1">Yes</option></select></label></div>
+      <button onclick="addDocType()">Add Doc Type</button>
+      <button onclick="listDocTypes()">List Doc Types</button>
+    </div>
+    <div id="doc_list" style="margin-top:12px;"></div>
+  </div>
+
+  <!-- WORKFLOW TEMPLATE JSON -->
+  <h2>3) Workflow Template (JSON)</h2>
+  <div class="card">
+    <div class="row">
+      <div><label>Service Key<br/><input id="wf_service_key" placeholder="gst_returns"/></label></div>
+      <button onclick="loadWorkflow()">Load</button>
+    </div>
+    <textarea id="wf_json" placeholder='{"steps":[...], "dependencies":[...], "slas":{...}}'></textarea>
+    <div class="row">
+      <button onclick="saveWorkflow()">Save New Version</button>
+      <div><label>Version to Publish<br/><input id="wf_version" type="number" min="1" /></label></div>
+      <button onclick="publishWorkflow()">Publish Version</button>
+    </div>
+    <div id="wf_info" class="muted"></div>
+  </div>
+
+  <!-- DUE DATE MASTER -->
+  <h2>4) Due Date Master</h2>
+  <div class="card">
+    <div class="row">
+      <div><label>Service Key<br/><input id="dd_service_key" placeholder="gst_returns"/></label></div>
+      <div><label>Jurisdiction<br/><input id="dd_juris" value="IN"/></label></div>
+      <div><label>Effective From (YYYY-MM-DD)<br/><input id="dd_from" placeholder="2025-04-01"/></label></div>
+      <div><label>Effective To (optional)<br/><input id="dd_to" placeholder=""/></label></div>
+      <button onclick="listDueDates()">List</button>
+    </div>
+    <textarea id="dd_rule" placeholder='{"periodicity":"MONTHLY","dueDayOfMonth":20,"nudges":{"tMinus":[7,3,1],"fixedDays":[1,2]}}'></textarea>
+    <div class="row">
+      <button onclick="addDueRule()">Add Rule</button>
+    </div>
+    <div id="dd_list" class="muted"></div>
+  </div>
+
+  <!-- BIND SERVICE TO CLIENT -->
+  <h2>5) Bind Service → Entity</h2>
+  <div class="card">
+    <div class="row">
+      <div><label>Entity ID<br/><input id="bind_entity" type="number" value="1"/></label></div>
+      <div><label>Service Key<br/><input id="bind_service" placeholder="gst_returns"/></label></div>
+      <div><label>Periodicity Override (optional)<br/>
+        <select id="bind_period_override"><option></option><option>MONTHLY</option><option>QUARTERLY</option><option>ANNUAL</option></select></label></div>
+      <div><label>Jurisdiction<br/><input id="bind_juris" value="IN"/></label></div>
+      <div><label>Meta JSON (optional)<br/><input id="bind_meta" placeholder='{"scheme":"QRMP"}'/></label></div>
+      <button onclick="bindService()">Bind</button>
+    </div>
+    <p class="muted">Spawner will create the period Service Orders automatically at 06:30 IST daily. Adjust cron if you want instant spawn for demo.</p>
+  </div>
+
+  <!-- QUICK PREVIEW OF SERVICE ORDERS -->
+  <h2>6) Preview Service Orders</h2>
+  <div class="card">
+    <div class="row">
+      <div><label>Filter Status<br/>
+        <select id="so_status"><option></option><option>Created</option><option>In Progress</option><option>Waiting on Client</option><option>Completed</option></select></label></div>
+      <div><label>Service Type<br/><input id="so_type" placeholder="gst_returns"/></label></div>
+      <button onclick="loadOrders()">Load</button>
+    </div>
+    <div id="so_list"></div>
+  </div>
+
+<script>
+const api = (p, opt={}) => fetch(p, { headers:{'Content-Type':'application/json'}, ...opt }).then(r=>r.json());
+
+// Toast notification system
+function showToast(message, type = 'success') {
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  
+  setTimeout(() => toast.classList.add('show'), 100);
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => document.body.removeChild(toast), 300);
+  }, 3000);
+}
+
+// Loading state management
+function setLoading(elementId, isLoading) {
+  const element = document.getElementById(elementId);
+  if (element) {
+    element.style.display = isLoading ? 'inline-block' : 'none';
+  }
+}
+
+async function addService(){
+  const body = {
+    serviceKey: v('svc_key'), name: v('svc_name'),
+    periodicity: v('svc_periodicity'), description: v('svc_desc')
+  };
+  if (!body.serviceKey || !body.name) {
+    showToast('Service Key and Name are required', 'error');
+    return;
+  }
+  
+  setLoading('add-service-loading', true);
+  try {
+    const res = await api('/api/admin/services', { method:'POST', body: JSON.stringify(body) });
+    if (res.id) {
+      showToast(`Service "${res.name}" added successfully`, 'success');
+      // Clear form
+      document.getElementById('svc_key').value = '';
+      document.getElementById('svc_name').value = '';
+      document.getElementById('svc_desc').value = '';
+      await loadServices();
+    } else {
+      showToast(res.error || 'Failed to add service', 'error');
+    }
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  } finally {
+    setLoading('add-service-loading', false);
+  }
+}
+async function loadServices(){
+  const rows = await api('/api/admin/services');
+  const html = ['<table><tr><th>Key</th><th>Name</th><th>Periodicity</th><th>Active</th></tr>']
+    .concat(rows.map(r=>`<tr><td>${r.serviceKey}</td><td>${r.name}</td><td><span class="pill">${r.periodicity}</span></td><td>${r.isActive?'Yes':'No'}</td></tr>`))
+    .concat('</table>').join('');
+  document.getElementById('svc_list').innerHTML = html;
+}
+async function addDocType(){
+  const key = v('doc_service_key');
+  const body = {
+    doctype: v('doc_doctype'),
+    label: v('doc_label'),
+    clientUploads: +v('doc_client'),
+    versioned: +v('doc_versioned'),
+    isDeliverable: +v('doc_deliv'),
+    isInternal: +v('doc_internal')
+  };
+  const res = await api(`/api/admin/services/${key}/doc-types`, { method:'POST', body: JSON.stringify(body) });
+  ok(res, 'Doc type added'); await listDocTypes();
+}
+async function listDocTypes(){
+  const key = v('doc_service_key');
+  const rows = await api(`/api/admin/services/${key}/doc-types`);
+  const html = ['<table><tr><th>Doctype</th><th>Label</th><th>Client</th><th>Deliverable</th><th>Internal</th></tr>']
+    .concat(rows.map(r=>`<tr><td>${r.doctype}</td><td>${r.label}</td><td>${r.clientUploads?'Yes':'No'}</td><td>${r.isDeliverable?'Yes':'No'}</td><td>${r.isInternal?'Yes':'No'}</td></tr>`))
+    .concat('</table>').join('');
+  document.getElementById('doc_list').innerHTML = html;
+}
+async function loadWorkflow(){
+  const key = v('wf_service_key');
+  const rows = await api(`/api/admin/workflows/${key}`);
+  if(!rows.length){ document.getElementById('wf_info').textContent='No versions yet'; return; }
+  document.getElementById('wf_json').value = JSON.stringify(JSON.parse(rows[0].templateJson), null, 2);
+  document.getElementById('wf_info').textContent = `Latest version: ${rows[0].version} | Published: ${rows[0].isPublished?'Yes':'No'}`;
+}
+async function saveWorkflow(){
+  try {
+    const key = v('wf_service_key');
+    const json = JSON.parse(document.getElementById('wf_json').value);
+    const res = await api(`/api/admin/workflows/${key}`, { method:'POST', body: JSON.stringify({templateJson:json}) });
+    ok(res, 'Version saved');
+    await loadWorkflow();
+  } catch(e){
+    err(e.message);
+  }
+}
+async function publishWorkflow(){
+  const key = v('wf_service_key');
+  const version = +v('wf_version');
+  const res = await api(`/api/admin/workflows/${key}/publish`, { method:'POST', body: JSON.stringify({version}) });
+  ok(res, 'Published');
+  await loadWorkflow();
+}
+async function listDueDates(){
+  const key = v('dd_service_key');
+  const rows = await api(`/api/admin/due-dates/${key}`);
+  const html = ['<table><tr><th>Jurisdiction</th><th>Rule JSON</th><th>Effective From</th><th>Active</th></tr>']
+    .concat(rows.map(r=>`<tr><td>${r.jurisdiction}</td><td>${r.ruleJson}</td><td>${r.effectiveFrom}</td><td>${r.isActive?'Yes':'No'}</td></tr>`))
+    .concat('</table>').join('');
+  document.getElementById('dd_list').innerHTML = html;
+}
+async function addDueRule(){
+  try {
+    const key = v('dd_service_key');
+    const ruleJson = JSON.parse(document.getElementById('dd_rule').value);
+    const body = {
+      jurisdiction: v('dd_juris'),
+      ruleJson,
+      effectiveFrom: v('dd_from'),
+      effectiveTo: v('dd_to') || null
+    };
+    const res = await api(`/api/admin/due-dates/${key}`, { method:'POST', body: JSON.stringify(body) });
+    ok(res, 'Rule added');
+    await listDueDates();
+  } catch(e){
+    err(e.message);
+  }
+}
+async function bindService(){
+  const body = {
+    serviceKey: v('bind_service'),
+    periodicityOverride: v('bind_period_override') || null,
+    jurisdiction: v('bind_juris'),
+    metaJson: v('bind_meta') ? JSON.parse(v('bind_meta')) : null
+  };
+  const res = await api(`/api/admin/entities/${v('bind_entity')}/services`, { method:'POST', body: JSON.stringify(body) });
+  ok(res, 'Service bound to entity');
+}
+async function loadOrders(){
+  const params = new URLSearchParams();
+  if(v('so_status')) params.set('status', v('so_status'));
+  if(v('so_type')) params.set('service_type', v('so_type'));
+  const rows = await api(`/api/service-orders?${params}`);
+  const html = ['<table><tr><th>ID</th><th>Entity</th><th>Service</th><th>Period</th><th>Status</th><th>Due Date</th></tr>']
+    .concat(rows.map(r=>`<tr><td>${r.id}</td><td>${r.entityName||'N/A'}</td><td>${r.serviceType}</td><td>${r.periodLabel}</td><td><span class="pill">${r.status}</span></td><td>${r.dueDate}</td></tr>`))
+    .concat('</table>').join('');
+  document.getElementById('so_list').innerHTML = html;
+}
+
+function v(id) { return document.getElementById(id).value; }
+function ok(res, msg) { console.log(msg, res); }
+function err(msg) { console.error('Error:', msg); }
+
+// Load initial data
+window.addEventListener('load', () => {
+  loadServices();
+});
+</script>
+</body>
+</html>
